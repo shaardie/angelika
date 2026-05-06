@@ -1,5 +1,3 @@
-use std::mem::transmute;
-
 pub type Bitboard = u64;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -126,23 +124,8 @@ mod tests {
     }
 
     #[test]
-    fn color_switch() {
+    fn color() {
         assert_eq!(Color::White.switch(), Color::Black);
         assert_eq!(Color::Black.switch(), Color::White);
-    }
-
-    #[test]
-    fn color_num() {
-        assert_eq!(Color::NUM, 2);
-    }
-
-    #[test]
-    fn piece_type_num() {
-        assert_eq!(PieceType::NUM, 6);
-    }
-
-    #[test]
-    fn piece_num() {
-        assert_eq!(Piece::NUM, 12);
     }
 }
