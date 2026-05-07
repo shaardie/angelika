@@ -1,4 +1,4 @@
-pub type Bitboard = u64;
+use std::ops::{Index, IndexMut};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[repr(u8)]
@@ -46,7 +46,19 @@ impl File {
 
 impl Square {
     pub const NUM: usize = 64;
-    pub const fn new(v: u8) -> Square {
+    // calculate all Squares ahead and iterate over that.
+    // Seems not that great
+    pub const ALL: [Self; Self::NUM] = {
+        let mut arr = [Self::A1; Self::NUM];
+        let mut i: u8 = 0;
+        while (i as usize) < Self::NUM {
+            arr[i as usize] = Square::new(i);
+            i += 1;
+        }
+        arr
+    };
+
+    pub const fn new(v: u8) -> Self {
         debug_assert!(v < Self::NUM as u8);
         unsafe { std::mem::transmute(v) }
     }
@@ -61,52 +73,17 @@ impl Square {
     }
 }
 
-#[derive(PartialEq, Debug)]
-pub enum Color {
-    White,
-    Black,
-}
-
-impl Color {
-    pub const NUM: usize = 2;
-    pub const fn switch(self) -> Color {
-        match self {
-            Color::White => Color::Black,
-            Color::Black => Color::White,
-        }
+impl<T> Index<Square> for [T] {
+    type Output = T;
+    fn index(&self, index: Square) -> &Self::Output {
+        &self[index as usize]
     }
 }
 
-pub enum PieceType {
-    Pawn,
-    Knight,
-    Bishop,
-    Rook,
-    Queen,
-    King,
-}
-
-impl PieceType {
-    pub const NUM: usize = 6;
-}
-
-pub enum Piece {
-    WhitePawn,
-    WhiteKnight,
-    WhiteBishop,
-    WhiteRook,
-    WhiteQueen,
-    WhiteKing,
-    BlackPawn,
-    BlackKnight,
-    BlackBishop,
-    BlackRook,
-    BlackQueen,
-    BlackKing,
-}
-
-impl Piece {
-    pub const NUM: usize = Color::NUM * PieceType::NUM;
+impl<T> IndexMut<Square> for [T] {
+    fn index_mut(&mut self, index: Square) -> &mut Self::Output {
+        &mut self[index as usize]
+    }
 }
 
 #[cfg(test)]
@@ -121,11 +98,5 @@ mod tests {
         assert_eq!(sq.rank(), r);
         assert_eq!(sq.file(), f);
         assert_eq!(Square::from_rank_and_file(r, f), sq);
-    }
-
-    #[test]
-    fn color() {
-        assert_eq!(Color::White.switch(), Color::Black);
-        assert_eq!(Color::Black.switch(), Color::White);
     }
 }
