@@ -34,12 +34,6 @@ impl Shl for Bitboard {
     }
 }
 
-impl From<Square> for Bitboard {
-    fn from(value: Square) -> Self {
-        Self(1u64 << (value as u64))
-    }
-}
-
 impl Bitboard {
     pub const EMPTY: Self = Self(0);
     pub const ONE: Self = Self(1);
@@ -91,6 +85,12 @@ impl Bitboard {
     pub const fn south_east_one(self) -> Bitboard {
         self.south_one().east_one()
     }
+
+    // from_square explicitly not as a traint to be able to define this as const fn and also use it
+    // in other const fn
+    pub const fn from_square(sq: Square) -> Bitboard {
+        Self(1u64 << (sq as u64))
+    }
 }
 
 #[cfg(test)]
@@ -114,6 +114,6 @@ mod test {
 
     #[test]
     fn from_square() {
-        assert_eq!(Bitboard::from(Square::E2), Bitboard(0b1000000000000))
+        assert_eq!(Bitboard::from_square(Square::E2), Bitboard(0b1000000000000))
     }
 }

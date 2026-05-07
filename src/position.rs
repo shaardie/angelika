@@ -43,7 +43,7 @@ impl Position {
         // Generate Bitboards
         for sq in Square::ALL {
             if let Some(piece) = pos.board[sq] {
-                let bb = Bitboard::from(sq);
+                let bb = Bitboard::from_square(sq);
                 let c = piece.color();
                 pos.pieces[c][piece.piece_type()] |= bb;
                 pos.all_pieces |= bb;
