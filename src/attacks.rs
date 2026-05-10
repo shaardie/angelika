@@ -1,20 +1,18 @@
 use crate::bitboard::Bitboard;
 use crate::square::Square;
 
-pub const KNIGHT_ATTACKS: [Bitboard; Square::NUM] = generate_knight_attacks();
-
-const fn generate_knight_attacks() -> [Bitboard; Square::NUM] {
+pub const KNIGHT_ATTACKS: [Bitboard; Square::NUM] = {
     let mut r = [Bitboard::EMPTY; Square::NUM];
     let mut i: u8 = 0;
     while (i as usize) < Square::NUM {
         let sq = Square::new(i);
-        r[i as usize] = _generate_knight_attacks(sq);
+        r[i as usize] = knight_attacks(sq);
         i += 1;
     }
     r
-}
+};
 
-const fn _generate_knight_attacks(sq: Square) -> Bitboard {
+const fn knight_attacks(sq: Square) -> Bitboard {
     let bb = Bitboard::from_square(sq);
     let east = bb.east_one();
     let west = bb.west_one();
