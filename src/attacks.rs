@@ -1,3 +1,4 @@
+use crate::attacks;
 use crate::bitboard::Bitboard;
 use crate::piece::Color;
 use crate::square::Square;
@@ -67,6 +68,58 @@ const fn pawn_attacks(color: Color, pawns: Bitboard) -> Bitboard {
     }
 }
 
+fn sliding_attacks(
+    sq: Square,
+    occupied: Bitboard,
+    directions: &[fn(Bitboard) -> Bitboard],
+) -> Bitboard {
+    let mut attacks = Bitboard::EMPTY;
+
+    for direction in directions {
+        let mut bb = Bitboard::from_square(sq);
+        loop {
+            let next_move = direction(bb);
+            // no square to move
+            if next_move == Bitboard::EMPTY {
+                break;
+            }
+            attacks |= next_move;
+
+            // square was occupied
+            if next_move & occupied != Bitboard::EMPTY {
+                break;
+            }
+            bb = next_move;
+        }
+    }
+    attacks
+}
+fn rook_attacks_slow(sq: Square, occupied: Bitboard) -> Bitboard {
+    sliding_attacks(
+        sq,
+        occupied,
+        &[
+            Bitboard::north_one,
+            Bitboard::south_one,
+            Bitboard::west_one,
+            Bitboard::east_one,
+        ],
+    )
+}
+
+fn bishop_attacks_slow(sq: Square, occupied: Bitboard) -> Bitboard {
+    sliding_attacks(
+        sq,
+        occupied,
+        &[
+            Bitboard::north_west_one,
+            Bitboard::south_west_one,
+            Bitboard::north_east_one,
+            Bitboard::south_east_one,
+        ],
+    )
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -124,6 +177,81 @@ mod test {
             Bitboard::from_square(Square::B3)
                 | Bitboard::from_square(Square::D3)
                 | Bitboard::from_square(Square::F3)
+        );
+    }
+
+    #[test]
+    fn test_rook_attacks_slow_empty_board() {
+        assert_eq!(
+            rook_attacks_slow(Square::A1, Bitboard::EMPTY),
+            Bitboard::from_square(Square::B1)
+                | Bitboard::from_square(Square::C1)
+                | Bitboard::from_square(Square::D1)
+                | Bitboard::from_square(Square::E1)
+                | Bitboard::from_square(Square::F1)
+                | Bitboard::from_square(Square::G1)
+                | Bitboard::from_square(Square::H1)
+                | Bitboard::from_square(Square::A2)
+                | Bitboard::from_square(Square::A3)
+                | Bitboard::from_square(Square::A4)
+                | Bitboard::from_square(Square::A5)
+                | Bitboard::from_square(Square::A6)
+                | Bitboard::from_square(Square::A7)
+                | Bitboard::from_square(Square::A8)
+        );
+    }
+
+    #[test]
+    fn test_rook_attacks_slow_with_blockers() {
+        assert_eq!(
+            rook_attacks_slow(
+                Square::E4,
+                Bitboard::from_square(Square::D4)
+                    | Bitboard::from_square(Square::E2)
+                    | Bitboard::from_square(Square::E6)
+                    | Bitboard::from_square(Square::F4)
+            ),
+            Bitboard::from_square(Square::D4)
+                | Bitboard::from_square(Square::E2)
+                | Bitboard::from_square(Square::E3)
+                | Bitboard::from_square(Square::E5)
+                | Bitboard::from_square(Square::E6)
+                | Bitboard::from_square(Square::F4)
+        );
+    }
+
+    #[test]
+    fn test_bishop_attacks_slow_empty_board() {
+        assert_eq!(
+            bishop_attacks_slow(Square::A1, Bitboard::EMPTY),
+            Bitboard::from_square(Square::B2)
+                | Bitboard::from_square(Square::C3)
+                | Bitboard::from_square(Square::D4)
+                | Bitboard::from_square(Square::E5)
+                | Bitboard::from_square(Square::F6)
+                | Bitboard::from_square(Square::G7)
+                | Bitboard::from_square(Square::H8)
+        );
+    }
+
+    #[test]
+    fn test_bishop_attacks_slow_with_blockers() {
+        assert_eq!(
+            bishop_attacks_slow(
+                Square::E4,
+                Bitboard::from_square(Square::C2)
+                    | Bitboard::from_square(Square::G6)
+                    | Bitboard::from_square(Square::C6)
+                    | Bitboard::from_square(Square::G2)
+            ),
+            Bitboard::from_square(Square::D3)
+                | Bitboard::from_square(Square::C2)
+                | Bitboard::from_square(Square::F5)
+                | Bitboard::from_square(Square::G6)
+                | Bitboard::from_square(Square::D5)
+                | Bitboard::from_square(Square::C6)
+                | Bitboard::from_square(Square::F3)
+                | Bitboard::from_square(Square::G2)
         );
     }
 }
