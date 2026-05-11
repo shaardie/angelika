@@ -1,4 +1,7 @@
-use std::ops::{BitAnd, BitOr, BitOrAssign, Shl};
+use std::{
+    collections::binary_heap::Iter,
+    ops::{BitAnd, BitOr, BitOrAssign, Shl},
+};
 
 use crate::square::Square;
 
@@ -61,35 +64,65 @@ impl Bitboard {
     pub const NOT_FILE_A: Self = Self(!Self::FILE_A.0);
     pub const NOT_FILE_H: Self = Self(!Self::FILE_H.0);
 
-    pub const fn north_one(self) -> Bitboard {
+    pub const fn north_one(self) -> Self {
         Self(self.0 << 8)
     }
-    pub const fn south_one(self) -> Bitboard {
+    pub const fn south_one(self) -> Self {
         Self(self.0 >> 8)
     }
-    pub const fn west_one(self) -> Bitboard {
+    pub const fn west_one(self) -> Self {
         Self((self.0 & Self::NOT_FILE_A.0) >> 1)
     }
-    pub const fn east_one(self) -> Bitboard {
+    pub const fn east_one(self) -> Self {
         Self((self.0 & Self::NOT_FILE_H.0) << 1)
     }
-    pub const fn north_west_one(self) -> Bitboard {
+    pub const fn north_west_one(self) -> Self {
         self.north_one().west_one()
     }
-    pub const fn north_east_one(self) -> Bitboard {
+    pub const fn north_east_one(self) -> Self {
         self.north_one().east_one()
     }
-    pub const fn south_west_one(self) -> Bitboard {
+    pub const fn south_west_one(self) -> Self {
         self.south_one().west_one()
     }
-    pub const fn south_east_one(self) -> Bitboard {
+    pub const fn south_east_one(self) -> Self {
         self.south_one().east_one()
     }
 
     // from_square explicitly not as a traint to be able to define this as const fn and also use it
     // in other const fn
-    pub const fn from_square(sq: Square) -> Bitboard {
+    pub const fn from_square(sq: Square) -> Self {
         Self(1u64 << (sq as u64))
+    }
+
+    pub fn subsets(self) -> impl Iterator<Item = Self> {
+        SubsetIterator {
+            current: Bitboard::EMPTY,
+            mask: self,
+            done: false,
+        }
+    }
+}
+
+struct SubsetIterator {
+    mask: Bitboard,
+    current: Bitboard,
+    done: bool,
+}
+
+impl Iterator for SubsetIterator {
+    type Item = Bitboard;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let s = self.current;
+        if self.done {
+            return None;
+        }
+        self.current = Bitboard(self.current.0.wrapping_sub(self.mask.0)) & self.mask;
+        if self.current == Bitboard::EMPTY {
+            self.done = true;
+        }
+        Some(s)
     }
 }
 
@@ -115,5 +148,26 @@ mod test {
     #[test]
     fn from_square() {
         assert_eq!(Bitboard::from_square(Square::E2), Bitboard(0b1000000000000))
+    }
+
+    #[test]
+    fn test_subsets_empty() {
+        assert_eq!(
+            Bitboard::EMPTY.subsets().collect::<Vec<Bitboard>>(),
+            vec![Bitboard::EMPTY]
+        )
+    }
+
+    #[test]
+    fn test_subsets() {
+        assert_eq!(
+            Bitboard(0b1010).subsets().collect::<Vec<Bitboard>>(),
+            vec![
+                Bitboard::EMPTY,
+                Bitboard(0b10),
+                Bitboard(0b1000),
+                Bitboard(0b1010)
+            ]
+        )
     }
 }
