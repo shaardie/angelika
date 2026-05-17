@@ -1,4 +1,4 @@
-use std::ops::{Index, IndexMut};
+use std::ops::{AddAssign, Index, IndexMut, SubAssign};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[repr(u8)]
@@ -70,6 +70,14 @@ impl Square {
     }
     pub const fn from_rank_and_file(r: Rank, f: File) -> Square {
         Self::new((r as u8) << 3 | (f as u8))
+    }
+
+    pub const fn next(self) -> Self {
+        Self::new((self as u8).wrapping_add(1))
+    }
+
+    pub const fn previous(self) -> Self {
+        Self::new((self as u8).wrapping_sub(1))
     }
 }
 
