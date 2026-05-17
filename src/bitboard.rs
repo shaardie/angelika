@@ -144,6 +144,17 @@ impl Bitboard {
     pub fn population_count(self) -> u32 {
         self.0.count_ones()
     }
+
+    pub fn lsb(self) -> Option<u32> {
+        if self == Bitboard::EMPTY {
+            return None;
+        }
+        Some(self.0.trailing_zeros())
+    }
+
+    pub fn lsb_square(self) -> Square {
+        Square::new(self.lsb().unwrap() as u8)
+    }
 }
 
 struct SubsetIterator {
@@ -223,5 +234,10 @@ mod test {
     #[test]
     fn test_population_count() {
         assert_eq!(Bitboard(0b0100111).population_count(), 4);
+    }
+
+    #[test]
+    fn test_least_significant_one_bit() {
+        assert_eq!(Bitboard(0b1000).lsb_square(), Square::new(3));
     }
 }

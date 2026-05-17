@@ -1,3 +1,4 @@
+use crate::attacks;
 use crate::bitboard::Bitboard;
 use crate::castling::Castling;
 use crate::piece::{Color, Piece, PieceType};
@@ -52,5 +53,20 @@ impl Position {
         }
 
         pos
+    }
+
+    fn square_attacked_by_color(&self, square: Square, color: Color) -> Bitboard {
+        attacks::KING_ATTACKS[square] & self.pieces[color][PieceType::King]
+            | attacks::KNIGHT_ATTACKS[square] & self.pieces[color][PieceType::Knight]
+            | attacks::PAWN_ATTACKS[color][square] & self.pieces[color][PieceType::Pawn]
+            | attacks::bishop_attacks(square, self.all_pieces)
+                & self.pieces[color][PieceType::Bishop]
+            | attacks::rook_attacks(square, self.all_pieces) & self.pieces[color][PieceType::Rook]
+            | attacks::queen_attacks(square, self.all_pieces) & self.pieces[color][PieceType::Queen]
+    }
+
+    pub fn is_check(&self) -> bool {
+        let sq = self.pieces[self.side_to_move][PieceType::King].lsb_square();
+        self.square_attacked_by_color(sq, self.side_to_move.switch()) != Bitboard::EMPTY
     }
 }
