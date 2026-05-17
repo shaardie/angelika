@@ -134,4 +134,14 @@ impl Position {
         }
         true
     }
+
+    pub fn from_fen(fen: &str) -> Result<Self, &str> {
+        let tokens: Vec<&str> = fen.split(' ').collect();
+
+        if tokens.len() != 6 {
+            return Err("wrong number of tokens");
+        }
+
+        unimplemented!()
+    }
 }
