@@ -1,7 +1,4 @@
-use std::{
-    collections::binary_heap::Iter,
-    ops::{BitAnd, BitOr, BitOrAssign, Shl},
-};
+use std::ops::{BitAnd, BitOr, BitOrAssign, Mul, Not, Shl, Shr};
 
 use crate::square::Square;
 
@@ -34,6 +31,47 @@ impl Shl for Bitboard {
     type Output = Self;
     fn shl(self, rhs: Self) -> Self::Output {
         Self(self.0 << rhs.0)
+    }
+}
+
+impl Shr for Bitboard {
+    type Output = Self;
+    fn shr(self, rhs: Self) -> Self::Output {
+        Self(self.0 >> rhs.0)
+    }
+}
+
+impl<T> Shl<T> for Bitboard
+where
+    u64: Shl<T, Output = u64>,
+{
+    type Output = Self;
+    fn shl(self, rhs: T) -> Self::Output {
+        Self(self.0 << rhs)
+    }
+}
+
+impl<T> Shr<T> for Bitboard
+where
+    u64: Shr<T, Output = u64>,
+{
+    type Output = Self;
+    fn shr(self, rhs: T) -> Self::Output {
+        Self(self.0 >> rhs)
+    }
+}
+
+impl Not for Bitboard {
+    type Output = Self;
+    fn not(self) -> Self::Output {
+        Self(!self.0)
+    }
+}
+
+impl Mul for Bitboard {
+    type Output = Self;
+    fn mul(self, rhs: Self) -> Self::Output {
+        Self(self.0.wrapping_mul(rhs.0))
     }
 }
 
@@ -102,6 +140,10 @@ impl Bitboard {
             done: false,
         }
     }
+
+    pub fn population_count(self) -> u32 {
+        self.0.count_ones()
+    }
 }
 
 struct SubsetIterator {
@@ -132,22 +174,29 @@ mod test {
 
     #[test]
     fn and() {
-        assert_eq!(Bitboard(0b1010) & Bitboard(0b0010), Bitboard(0b0010))
+        assert_eq!(Bitboard(0b1010) & Bitboard(0b0010), Bitboard(0b0010));
     }
 
     #[test]
     fn or() {
-        assert_eq!(Bitboard(0b1010) | Bitboard(0b0101), Bitboard(0b1111))
+        assert_eq!(Bitboard(0b1010) | Bitboard(0b0101), Bitboard(0b1111));
     }
 
     #[test]
     fn shl() {
-        assert_eq!(Bitboard(0b1010) << Bitboard::ONE, Bitboard(0b10100))
+        assert_eq!(Bitboard(0b1010) << Bitboard::ONE, Bitboard(0b10100));
+        assert_eq!(Bitboard(0b1010) << 1, Bitboard(0b10100));
+    }
+
+    #[test]
+    fn shr() {
+        assert_eq!(Bitboard(0b1010) >> Bitboard::ONE, Bitboard(0b101));
+        assert_eq!(Bitboard(0b1010) >> 1, Bitboard(0b101))
     }
 
     #[test]
     fn from_square() {
-        assert_eq!(Bitboard::from_square(Square::E2), Bitboard(0b1000000000000))
+        assert_eq!(Bitboard::from_square(Square::E2), Bitboard(0b1000000000000));
     }
 
     #[test]
@@ -155,7 +204,7 @@ mod test {
         assert_eq!(
             Bitboard::EMPTY.subsets().collect::<Vec<Bitboard>>(),
             vec![Bitboard::EMPTY]
-        )
+        );
     }
 
     #[test]
@@ -168,6 +217,11 @@ mod test {
                 Bitboard(0b1000),
                 Bitboard(0b1010)
             ]
-        )
+        );
+    }
+
+    #[test]
+    fn test_population_count() {
+        assert_eq!(Bitboard(0b0100111).population_count(), 4);
     }
 }

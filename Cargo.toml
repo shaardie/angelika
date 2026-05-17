@@ -3,4 +3,9 @@ name = "angelika"
 version = "0.1.0"
 edition = "2024"
 
+# Needed because Magic is still pretty slow in debug mode
+[profile.test]
+opt-level = 3
+
 [dependencies]
+rand = "0.10.1"

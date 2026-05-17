@@ -1,5 +1,7 @@
-use crate::attacks;
+use std::sync::OnceLock;
+
 use crate::bitboard::Bitboard;
+use crate::magic::Magic;
 use crate::piece::Color;
 use crate::square::Square;
 
@@ -13,6 +15,7 @@ pub const KNIGHT_ATTACKS: [Bitboard; Square::NUM] = {
     }
     r
 };
+
 const fn knight_attacks(sq: Square) -> Bitboard {
     let bb = Bitboard::from_square(sq);
     let east = bb.east_one();
@@ -94,18 +97,6 @@ fn sliding_attacks(
     }
     attacks
 }
-fn rook_attacks_slow(sq: Square, occupied: Bitboard) -> Bitboard {
-    sliding_attacks(
-        sq,
-        occupied,
-        &[
-            Bitboard::north_one,
-            Bitboard::south_one,
-            Bitboard::west_one,
-            Bitboard::east_one,
-        ],
-    )
-}
 
 fn bishop_attacks_slow(sq: Square, occupied: Bitboard) -> Bitboard {
     sliding_attacks(
@@ -120,9 +111,51 @@ fn bishop_attacks_slow(sq: Square, occupied: Bitboard) -> Bitboard {
     )
 }
 
+fn rook_attacks_slow(sq: Square, occupied: Bitboard) -> Bitboard {
+    sliding_attacks(
+        sq,
+        occupied,
+        &[
+            Bitboard::north_one,
+            Bitboard::south_one,
+            Bitboard::west_one,
+            Bitboard::east_one,
+        ],
+    )
+}
+
+static BISHOP_MAGICS: OnceLock<[Magic; Square::NUM]> = OnceLock::new();
+const BISHOP_SEED: u64 = 281954;
+static ROOK_MAGICS: OnceLock<[Magic; Square::NUM]> = OnceLock::new();
+const ROOK_SEED: u64 = 121146;
+
+pub fn init() {
+    BISHOP_MAGICS.get_or_init(|| Magic::init_magics(bishop_attacks_slow, BISHOP_SEED));
+    ROOK_MAGICS.get_or_init(|| Magic::init_magics(rook_attacks_slow, ROOK_SEED));
+}
+
+pub fn bishop_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
+    let magics = BISHOP_MAGICS.get_or_init(|| Magic::init_magics(rook_attacks_slow, BISHOP_SEED));
+    let magic = &magics[sq];
+    let idx = magic.index(occupied);
+    magic.attacks[idx]
+}
+
+pub fn rook_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
+    let magics = ROOK_MAGICS.get_or_init(|| Magic::init_magics(rook_attacks_slow, ROOK_SEED));
+    let magic = &magics[sq];
+    let idx = magic.index(occupied);
+    magic.attacks[idx]
+}
+
+pub fn queen_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
+    bishop_attacks(sq, occupied) | rook_attacks(sq, occupied)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
+    use rand::prelude::*;
 
     #[test]
     fn test_knight_attacks() {
@@ -181,6 +214,41 @@ mod test {
     }
 
     #[test]
+    fn test_bishop_attacks_slow_empty_board() {
+        assert_eq!(
+            bishop_attacks_slow(Square::A1, Bitboard::EMPTY),
+            Bitboard::from_square(Square::B2)
+                | Bitboard::from_square(Square::C3)
+                | Bitboard::from_square(Square::D4)
+                | Bitboard::from_square(Square::E5)
+                | Bitboard::from_square(Square::F6)
+                | Bitboard::from_square(Square::G7)
+                | Bitboard::from_square(Square::H8)
+        );
+    }
+
+    #[test]
+    fn test_bishop_attacks_slow_with_blockers() {
+        assert_eq!(
+            bishop_attacks_slow(
+                Square::E4,
+                Bitboard::from_square(Square::C2)
+                    | Bitboard::from_square(Square::G6)
+                    | Bitboard::from_square(Square::C6)
+                    | Bitboard::from_square(Square::G2)
+            ),
+            Bitboard::from_square(Square::D3)
+                | Bitboard::from_square(Square::C2)
+                | Bitboard::from_square(Square::F5)
+                | Bitboard::from_square(Square::G6)
+                | Bitboard::from_square(Square::D5)
+                | Bitboard::from_square(Square::C6)
+                | Bitboard::from_square(Square::F3)
+                | Bitboard::from_square(Square::G2)
+        );
+    }
+
+    #[test]
     fn test_rook_attacks_slow_empty_board() {
         assert_eq!(
             rook_attacks_slow(Square::A1, Bitboard::EMPTY),
@@ -221,37 +289,44 @@ mod test {
     }
 
     #[test]
-    fn test_bishop_attacks_slow_empty_board() {
-        assert_eq!(
-            bishop_attacks_slow(Square::A1, Bitboard::EMPTY),
-            Bitboard::from_square(Square::B2)
-                | Bitboard::from_square(Square::C3)
-                | Bitboard::from_square(Square::D4)
-                | Bitboard::from_square(Square::E5)
-                | Bitboard::from_square(Square::F6)
-                | Bitboard::from_square(Square::G7)
-                | Bitboard::from_square(Square::H8)
-        );
+    fn test_bishop_attacks() {
+        let mut rng = rand::rng();
+        init();
+        for sq in Square::ALL {
+            for _ in 0..1024 {
+                let occupied = Bitboard(rng.random::<u64>());
+                assert_eq!(
+                    bishop_attacks(sq, occupied),
+                    bishop_attacks_slow(sq, occupied)
+                );
+            }
+        }
     }
 
     #[test]
-    fn test_bishop_attacks_slow_with_blockers() {
-        assert_eq!(
-            bishop_attacks_slow(
-                Square::E4,
-                Bitboard::from_square(Square::C2)
-                    | Bitboard::from_square(Square::G6)
-                    | Bitboard::from_square(Square::C6)
-                    | Bitboard::from_square(Square::G2)
-            ),
-            Bitboard::from_square(Square::D3)
-                | Bitboard::from_square(Square::C2)
-                | Bitboard::from_square(Square::F5)
-                | Bitboard::from_square(Square::G6)
-                | Bitboard::from_square(Square::D5)
-                | Bitboard::from_square(Square::C6)
-                | Bitboard::from_square(Square::F3)
-                | Bitboard::from_square(Square::G2)
-        );
+    fn test_rook_attacks() {
+        let mut rng = rand::rng();
+        init();
+        for sq in Square::ALL {
+            for _ in 0..1024 {
+                let occupied = Bitboard(rng.random::<u64>());
+                assert_eq!(rook_attacks(sq, occupied), rook_attacks_slow(sq, occupied));
+            }
+        }
+    }
+
+    #[test]
+    fn test_queen_attacks() {
+        let mut rng = rand::rng();
+        init();
+        for sq in Square::ALL {
+            for _ in 0..1024 {
+                let occupied = Bitboard(rng.random::<u64>());
+                assert_eq!(
+                    queen_attacks(sq, occupied),
+                    bishop_attacks_slow(sq, occupied) | rook_attacks(sq, occupied)
+                );
+            }
+        }
     }
 }
