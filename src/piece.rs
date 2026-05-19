@@ -1,4 +1,7 @@
-use std::ops::{Index, IndexMut};
+use std::{
+    mem::transmute,
+    ops::{Index, IndexMut},
+};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[repr(u8)]
@@ -9,11 +12,8 @@ pub enum Color {
 
 impl Color {
     pub const NUM: usize = 2;
-    pub const fn switch(self) -> Color {
-        match self {
-            Color::White => Color::Black,
-            Color::Black => Color::White,
-        }
+    pub const fn switch(self) -> Self {
+        unsafe { transmute(self as u8 ^ Self::Black as u8) }
     }
 }
 
@@ -33,7 +33,7 @@ impl<T> IndexMut<Color> for [T] {
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[repr(u8)]
 pub enum PieceType {
-    Pawn,
+    Pawn = 1,
     Knight,
     Bishop,
     Rook,
@@ -61,13 +61,13 @@ impl<T> IndexMut<PieceType> for [T] {
 #[derive(Copy, Clone, PartialEq, Debug)]
 #[repr(u8)]
 pub enum Piece {
-    WhitePawn,
+    WhitePawn = 1,
     WhiteKnight,
     WhiteBishop,
     WhiteRook,
     WhiteQueen,
     WhiteKing,
-    BlackPawn,
+    BlackPawn = Self::WhitePawn as u8 + 8,
     BlackKnight,
     BlackBishop,
     BlackRook,
@@ -77,23 +77,11 @@ pub enum Piece {
 
 impl Piece {
     pub const NUM: usize = Color::NUM * PieceType::NUM;
-    pub const fn piece_type(&self) -> PieceType {
-        match self {
-            Self::WhitePawn | Self::BlackPawn => PieceType::Pawn,
-            Self::WhiteKnight | Self::BlackKnight => PieceType::Knight,
-            Self::WhiteBishop | Self::BlackBishop => PieceType::Bishop,
-            Self::WhiteRook | Self::BlackRook => PieceType::Rook,
-            Self::WhiteQueen | Self::BlackQueen => PieceType::Queen,
-            Self::WhiteKing | Self::BlackKing => PieceType::King,
-        }
+    pub const fn piece_type(self) -> PieceType {
+        unsafe { transmute(self as u8 & 7) }
     }
-    pub const fn color(&self) -> Color {
-        match self {
-            #[rustfmt::skip]
-            Self::WhitePawn | Self::WhiteKnight | Self::WhiteBishop | Self::WhiteRook | Self::WhiteQueen | Self::WhiteKing => Color::White,
-            #[rustfmt::skip]
-            Self::BlackPawn | Self::BlackKnight | Self::BlackBishop | Self::BlackRook | Self::BlackQueen | Self::BlackKing => Color::Black,
-        }
+    pub const fn color(self) -> Color {
+        unsafe { transmute(self as u8 >> 3) }
     }
 }
 
@@ -105,5 +93,47 @@ mod tests {
     fn color() {
         assert_eq!(Color::White.switch(), Color::Black);
         assert_eq!(Color::Black.switch(), Color::White);
+    }
+
+    #[test]
+    fn piece_type() {
+        for piece in &[
+            Piece::WhitePawn,
+            Piece::WhiteKnight,
+            Piece::WhiteBishop,
+            Piece::WhiteRook,
+            Piece::WhiteQueen,
+            Piece::WhiteKing,
+        ] {
+            assert_eq!(piece.color(), Color::White);
+        }
+        for piece in &[
+            Piece::BlackPawn,
+            Piece::BlackKnight,
+            Piece::BlackBishop,
+            Piece::BlackRook,
+            Piece::BlackQueen,
+            Piece::BlackKing,
+        ] {
+            assert_eq!(piece.color(), Color::Black);
+        }
+        for piece in &[Piece::WhitePawn, Piece::BlackPawn] {
+            assert_eq!(piece.piece_type(), PieceType::Pawn);
+        }
+        for piece in &[Piece::WhiteKnight, Piece::BlackKnight] {
+            assert_eq!(piece.piece_type(), PieceType::Knight);
+        }
+        for piece in &[Piece::WhiteBishop, Piece::BlackBishop] {
+            assert_eq!(piece.piece_type(), PieceType::Bishop);
+        }
+        for piece in &[Piece::WhiteRook, Piece::BlackRook] {
+            assert_eq!(piece.piece_type(), PieceType::Rook);
+        }
+        for piece in &[Piece::WhiteQueen, Piece::BlackQueen] {
+            assert_eq!(piece.piece_type(), PieceType::Queen);
+        }
+        for piece in &[Piece::WhiteKing, Piece::BlackKing] {
+            assert_eq!(piece.piece_type(), PieceType::King);
+        }
     }
 }
