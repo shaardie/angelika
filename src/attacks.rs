@@ -1,4 +1,4 @@
-use std::sync::OnceLock;
+use std::sync::LazyLock;
 
 use crate::bitboard::Bitboard;
 use crate::magic::Magic;
@@ -124,26 +124,27 @@ fn rook_attacks_slow(sq: Square, occupied: Bitboard) -> Bitboard {
     )
 }
 
-static BISHOP_MAGICS: OnceLock<[Magic; Square::NUM]> = OnceLock::new();
+static BISHOP_MAGICS: LazyLock<[Magic; Square::NUM]> =
+    LazyLock::new(|| Magic::init_magics(bishop_attacks_slow, BISHOP_SEED));
 const BISHOP_SEED: u64 = 281954;
-static ROOK_MAGICS: OnceLock<[Magic; Square::NUM]> = OnceLock::new();
+static ROOK_MAGICS: LazyLock<[Magic; Square::NUM]> =
+    LazyLock::new(|| Magic::init_magics(rook_attacks_slow, ROOK_SEED));
 const ROOK_SEED: u64 = 121146;
 
 pub fn init() {
-    BISHOP_MAGICS.get_or_init(|| Magic::init_magics(bishop_attacks_slow, BISHOP_SEED));
-    ROOK_MAGICS.get_or_init(|| Magic::init_magics(rook_attacks_slow, ROOK_SEED));
+    // Access once to initialize directly
+    let _ = &*ROOK_MAGICS;
+    let _ = &*BISHOP_MAGICS;
 }
 
 pub fn bishop_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
-    let magics = BISHOP_MAGICS.get_or_init(|| Magic::init_magics(rook_attacks_slow, BISHOP_SEED));
-    let magic = &magics[sq];
+    let magic = &BISHOP_MAGICS[sq];
     let idx = magic.index(occupied);
     magic.attacks[idx]
 }
 
 pub fn rook_attacks(sq: Square, occupied: Bitboard) -> Bitboard {
-    let magics = ROOK_MAGICS.get_or_init(|| Magic::init_magics(rook_attacks_slow, ROOK_SEED));
-    let magic = &magics[sq];
+    let magic = &ROOK_MAGICS[sq];
     let idx = magic.index(occupied);
     magic.attacks[idx]
 }
