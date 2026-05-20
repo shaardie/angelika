@@ -1,4 +1,4 @@
-use std::ops::{BitAnd, BitOr, BitOrAssign, Mul, Not, Shl, Shr};
+use std::ops::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Mul, Not, Shl, Shr};
 
 use crate::square::Square;
 
@@ -24,6 +24,12 @@ impl BitOr for Bitboard {
 impl BitOrAssign for Bitboard {
     fn bitor_assign(&mut self, rhs: Self) {
         self.0 |= rhs.0
+    }
+}
+
+impl BitAndAssign for Bitboard {
+    fn bitand_assign(&mut self, rhs: Self) {
+        self.0 &= rhs.0
     }
 }
 

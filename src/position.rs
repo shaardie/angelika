@@ -1,7 +1,7 @@
 use crate::attacks;
 use crate::bitboard::Bitboard;
 use crate::piece::{Color, Piece, PieceType};
-use crate::square::Square;
+use crate::square::{File, Rank, Square};
 
 type Castling = u8;
 const CASTLING_WHITE_KING: Castling = 0b0001;
@@ -9,6 +9,7 @@ const CASTLING_WHITE_QUEEN: Castling = 0b0010;
 const CASTLING_BLACK_KING: Castling = 0b0100;
 const CASTLING_BLACK_QUEEN: Castling = 0b1000;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
     pieces_by_color: [Bitboard; Color::NUM],
     pieces: [[Bitboard; PieceType::NUM]; Color::NUM],
@@ -16,9 +17,25 @@ pub struct Position {
     board: [Option<Piece>; Square::NUM],
     side_to_move: Color,
     castling: Castling,
-    en_passente: Option<Square>,
+    en_passante: Option<Square>,
     half_move_clock: u8,
     ply: u8,
+}
+
+impl Default for Position {
+    fn default() -> Self {
+        Position {
+            pieces_by_color: [Bitboard::EMPTY; Color::NUM],
+            pieces: [[Bitboard::EMPTY; PieceType::NUM]; Color::NUM],
+            all_pieces: Bitboard::EMPTY,
+            board: [None; Square::NUM],
+            side_to_move: Color::White,
+            castling: 0,
+            en_passante: None,
+            half_move_clock: 0,
+            ply: 0,
+        }
+    }
 }
 
 impl Position {
@@ -44,7 +61,7 @@ impl Position {
                 | CASTLING_WHITE_QUEEN
                 | CASTLING_BLACK_KING
                 | CASTLING_BLACK_QUEEN,
-            en_passente: None,
+            en_passante: None,
             half_move_clock: 0,
             ply: 0,
         };
@@ -135,13 +152,206 @@ impl Position {
         true
     }
 
+    pub fn get_piece(&self, square: Square) -> Piece {
+        self.board[square].unwrap()
+    }
+
+    pub fn set_piece(&mut self, piece: Piece, square: Square) {
+        let bb = Bitboard::from_square(square);
+        let piece_color = piece.color();
+        let piece_type = piece.piece_type();
+        self.pieces_by_color[piece_color] |= bb;
+        self.pieces[piece_color][piece_type] |= bb;
+        self.all_pieces |= bb;
+        self.board[square] = Some(piece);
+    }
+
+    pub fn delete_piece(&mut self, square: Square) -> Piece {
+        let nbb = !Bitboard::from_square(square);
+        let piece = self.board[square].unwrap();
+        let piece_color = piece.color();
+        let piece_type = piece.piece_type();
+        self.pieces_by_color[piece_color] &= nbb;
+        self.pieces[piece_color][piece_type] &= nbb;
+        self.all_pieces &= nbb;
+        self.board[square] = None;
+        piece
+    }
+
+    pub fn move_piece(&mut self, from_square: Square, to_square: Square) -> Piece {
+        let piece = self.delete_piece(from_square);
+        self.set_piece(piece, to_square);
+        piece
+    }
+
     pub fn from_fen(fen: &str) -> Result<Self, &str> {
+        let mut pos: Position = Default::default();
+
         let tokens: Vec<&str> = fen.split(' ').collect();
 
         if tokens.len() != 6 {
-            return Err("wrong number of tokens");
+            return Err("Invalid number of tokens");
         }
 
-        unimplemented!()
+        // Pieces
+        // use as u8 because during calculation is exceeds the
+        let mut sq = Square::A8 as u8;
+        // values of valid squares
+        for c in tokens[0].chars() {
+            if c.is_ascii_digit() {
+                sq += c.to_digit(10).unwrap() as u8;
+                continue;
+            } else if c == '/' {
+                sq -= 2 * 8;
+                continue;
+            }
+            pos.set_piece(Piece::from_char(c)?, Square::new(sq));
+            sq += 1;
+        }
+
+        // Side to move
+        match tokens[1] {
+            "w" => pos.side_to_move = Color::White,
+            "b" => pos.side_to_move = Color::Black,
+            _ => return Err("Invalid side to move"),
+        }
+
+        // Castling
+        pos.castling = 0;
+        for c in tokens[2].chars() {
+            match c {
+                'K' => pos.castling |= CASTLING_WHITE_KING,
+                'Q' => pos.castling |= CASTLING_WHITE_QUEEN,
+                'k' => pos.castling |= CASTLING_BLACK_KING,
+                'q' => pos.castling |= CASTLING_BLACK_QUEEN,
+                '-' => break,
+                _ => return Err("invalid castling token"),
+            }
+        }
+
+        // En passante
+        pos.en_passante = {
+            if tokens[3] == "-" {
+                None
+            } else {
+                Some(Square::from_chars(tokens[3])?)
+            }
+        };
+
+        // Half move clock
+        pos.half_move_clock = tokens[4]
+            .parse::<u8>()
+            .map_err(|_| "invalid half move clock")?;
+
+        // Plys
+        let number_of_full_moves = tokens[5]
+            .parse::<u8>()
+            .map_err(|_| "invalid number of full moves")?;
+        pos.ply = 2 * number_of_full_moves - 1;
+        if pos.side_to_move == Color::White {
+            pos.ply -= 1
+        }
+
+        Ok(pos)
+    }
+
+    pub fn to_fen(&self) -> String {
+        let mut s = String::new();
+
+        // Pieces
+        for rank in Rank::ALL.iter().rev() {
+            let mut empty_count = 0;
+            for file in File::ALL.iter() {
+                let sq = Square::from_rank_and_file(*rank, *file);
+                match self.board[sq] {
+                    None => empty_count += 1,
+                    Some(piece) => {
+                        if empty_count > 0 {
+                            s.push_str(&empty_count.to_string());
+                            empty_count = 0;
+                        }
+                        s.push(piece.to_char());
+                    }
+                }
+            }
+
+            if empty_count > 0 {
+                s.push_str(&empty_count.to_string());
+            }
+
+            if *rank != Rank::R1 {
+                s.push('/');
+            }
+        }
+
+        // Side to move
+        match self.side_to_move {
+            Color::White => s.push_str(" w "),
+            Color::Black => s.push_str(" b "),
+        }
+
+        // Castling
+        if self.castling == 0 {
+            s.push('-');
+        } else {
+            if self.castling & CASTLING_WHITE_KING != 0 {
+                s.push('K');
+            }
+            if self.castling & CASTLING_WHITE_QUEEN != 0 {
+                s.push('Q');
+            }
+            if self.castling & CASTLING_BLACK_KING != 0 {
+                s.push('k');
+            }
+            if self.castling & CASTLING_BLACK_QUEEN != 0 {
+                s.push('q');
+            }
+        };
+        s.push(' ');
+
+        // En Passant
+        match self.en_passante {
+            None => s.push('-'),
+            Some(sq) => s.push_str(&sq.to_str()),
+        }
+        s.push(' ');
+
+        // Half move clock
+        s.push_str(&self.half_move_clock.to_string());
+        s.push(' ');
+
+        // Number of full Moves
+        let number_of_full_moves = self.ply / 2 + 1;
+        s.push_str(&number_of_full_moves.to_string());
+
+        s
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_from_fen_starting_position() {
+        let pos =
+            Position::from_fen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1").unwrap();
+        let starting = Position::starting_position();
+
+        assert_eq!(pos, starting);
+    }
+
+    #[test]
+    fn test_fen_roundtrip() {
+        let fens = ["rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"];
+
+        for fen in fens {
+            assert_eq!(
+                Position::from_fen(fen).unwrap().to_fen(),
+                fen,
+                "Roundtrip failed for: {}",
+                fen
+            );
+        }
     }
 }

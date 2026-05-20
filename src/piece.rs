@@ -48,13 +48,13 @@ impl PieceType {
 impl<T> Index<PieceType> for [T] {
     type Output = T;
     fn index(&self, index: PieceType) -> &Self::Output {
-        &self[index as usize]
+        &self[index as usize - 1]
     }
 }
 
 impl<T> IndexMut<PieceType> for [T] {
     fn index_mut(&mut self, index: PieceType) -> &mut Self::Output {
-        &mut self[index as usize]
+        &mut self[index as usize - 1]
     }
 }
 
@@ -77,6 +77,27 @@ pub enum Piece {
 
 impl Piece {
     pub const NUM: usize = Color::NUM * PieceType::NUM;
+    const PIECE_TO_CHAR: &str = " PNBRQK  pnbrqk";
+
+    pub fn new(i: u8) -> Self {
+        unsafe { transmute(i) }
+    }
+
+    pub fn from_char(c: char) -> Result<Self, &'static str> {
+        let idx = Self::PIECE_TO_CHAR
+            .chars()
+            .position(|candidate| candidate == c)
+            .ok_or("invalid piece char")?;
+        if idx == 0 {
+            return Err("Invalid piece char");
+        }
+        Ok(Piece::new(idx as u8))
+    }
+
+    pub fn to_char(self) -> char {
+        Self::PIECE_TO_CHAR.as_bytes()[self as usize] as char
+    }
+
     pub const fn piece_type(self) -> PieceType {
         unsafe { transmute(self as u8 & 7) }
     }
@@ -135,5 +156,26 @@ mod tests {
         for piece in &[Piece::WhiteKing, Piece::BlackKing] {
             assert_eq!(piece.piece_type(), PieceType::King);
         }
+    }
+
+    #[test]
+    fn test_from_char() {
+        assert_eq!(Piece::from_char('P'), Ok(Piece::WhitePawn));
+        assert_eq!(Piece::from_char('N'), Ok(Piece::WhiteKnight));
+        assert_eq!(Piece::from_char('B'), Ok(Piece::WhiteBishop));
+        assert_eq!(Piece::from_char('R'), Ok(Piece::WhiteRook));
+        assert_eq!(Piece::from_char('Q'), Ok(Piece::WhiteQueen));
+        assert_eq!(Piece::from_char('K'), Ok(Piece::WhiteKing));
+        assert_eq!(Piece::from_char('p'), Ok(Piece::BlackPawn));
+        assert_eq!(Piece::from_char('n'), Ok(Piece::BlackKnight));
+        assert_eq!(Piece::from_char('b'), Ok(Piece::BlackBishop));
+        assert_eq!(Piece::from_char('r'), Ok(Piece::BlackRook));
+        assert_eq!(Piece::from_char('q'), Ok(Piece::BlackQueen));
+        assert_eq!(Piece::from_char('k'), Ok(Piece::BlackKing));
+
+        // Invalid Chars
+        assert!(Piece::from_char('x').is_err());
+        assert!(Piece::from_char('1').is_err());
+        assert!(Piece::from_char(' ').is_err());
     }
 }
