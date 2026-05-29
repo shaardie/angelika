@@ -43,6 +43,9 @@ pub enum PieceType {
 
 impl PieceType {
     pub const NUM: usize = 6;
+    pub fn new(i: u8) -> Self {
+        unsafe { transmute(i) }
+    }
 }
 
 impl<T> Index<PieceType> for [T] {
