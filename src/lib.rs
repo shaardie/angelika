@@ -1,6 +1,7 @@
 pub mod attacks;
 pub mod bitboard;
 pub mod chessmove;
+pub mod chessmovelist;
 pub mod magic;
 pub mod piece;
 pub mod position;
