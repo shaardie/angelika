@@ -1,6 +1,9 @@
 use crate::attacks;
 use crate::bitboard::Bitboard;
+use crate::chessmove::{Move, MoveType};
+use crate::chessmovelist::MoveList;
 use crate::piece::{Color, Piece, PieceType};
+use crate::pushes::pushes;
 use crate::square::{File, Rank, Square};
 
 type Castling = u8;
@@ -13,11 +16,11 @@ const CASTLING_BLACK_QUEEN: Castling = 0b1000;
 pub struct Position {
     pieces_by_color: [Bitboard; Color::NUM],
     pieces: [[Bitboard; PieceType::NUM]; Color::NUM],
-    all_pieces: Bitboard,
+    occupied: Bitboard,
     board: [Option<Piece>; Square::NUM],
     side_to_move: Color,
     castling: Castling,
-    en_passante: Option<Square>,
+    en_passant: Option<Square>,
     half_move_clock: u8,
     ply: u8,
 }
@@ -27,11 +30,11 @@ impl Default for Position {
         Position {
             pieces_by_color: [Bitboard::EMPTY; Color::NUM],
             pieces: [[Bitboard::EMPTY; PieceType::NUM]; Color::NUM],
-            all_pieces: Bitboard::EMPTY,
+            occupied: Bitboard::EMPTY,
             board: [None; Square::NUM],
             side_to_move: Color::White,
             castling: 0,
-            en_passante: None,
+            en_passant: None,
             half_move_clock: 0,
             ply: 0,
         }
@@ -54,14 +57,14 @@ impl Position {
         let mut pos = Position {
             pieces_by_color: [Bitboard::EMPTY; Color::NUM],
             pieces: [[Bitboard::EMPTY; PieceType::NUM]; Color::NUM],
-            all_pieces: Bitboard::EMPTY,
+            occupied: Bitboard::EMPTY,
             board,
             side_to_move: Color::White,
             castling: CASTLING_WHITE_KING
                 | CASTLING_WHITE_QUEEN
                 | CASTLING_BLACK_KING
                 | CASTLING_BLACK_QUEEN,
-            en_passante: None,
+            en_passant: None,
             half_move_clock: 0,
             ply: 0,
         };
@@ -72,7 +75,7 @@ impl Position {
                 let bb = Bitboard::from_square(sq);
                 let c = piece.color();
                 pos.pieces[c][piece.piece_type()] |= bb;
-                pos.all_pieces |= bb;
+                pos.occupied |= bb;
                 pos.pieces_by_color[c] |= bb
             }
         }
@@ -84,14 +87,15 @@ impl Position {
         attacks::KING_ATTACKS[square] & self.pieces[color][PieceType::King]
             | attacks::KNIGHT_ATTACKS[square] & self.pieces[color][PieceType::Knight]
             | attacks::PAWN_ATTACKS[color][square] & self.pieces[color][PieceType::Pawn]
-            | attacks::bishop_attacks(square, self.all_pieces)
-                & self.pieces[color][PieceType::Bishop]
-            | attacks::rook_attacks(square, self.all_pieces) & self.pieces[color][PieceType::Rook]
-            | attacks::queen_attacks(square, self.all_pieces) & self.pieces[color][PieceType::Queen]
+            | attacks::bishop_attacks(square, self.occupied) & self.pieces[color][PieceType::Bishop]
+            | attacks::rook_attacks(square, self.occupied) & self.pieces[color][PieceType::Rook]
+            | attacks::queen_attacks(square, self.occupied) & self.pieces[color][PieceType::Queen]
     }
 
     pub fn is_check(&self) -> bool {
-        let sq = self.pieces[self.side_to_move][PieceType::King].lsb_square();
+        let sq = self.pieces[self.side_to_move][PieceType::King]
+            .lsb_square()
+            .unwrap();
         self.square_attacked_by_color(sq, self.side_to_move.switch()) != Bitboard::EMPTY
     }
 
@@ -120,7 +124,8 @@ impl Position {
             return false;
         }
 
-        let mut square = Bitboard::lsb_square(self.pieces[self.side_to_move][PieceType::King]);
+        let mut square =
+            Bitboard::lsb_square(self.pieces[self.side_to_move][PieceType::King]).unwrap();
         let mut attacked_files = 2;
         let mut free_files = if queen_side { 3 } else { 2 };
         while attacked_files > 0 || free_files > 0 {
@@ -162,7 +167,7 @@ impl Position {
         let piece_type = piece.piece_type();
         self.pieces_by_color[piece_color] |= bb;
         self.pieces[piece_color][piece_type] |= bb;
-        self.all_pieces |= bb;
+        self.occupied |= bb;
         self.board[square] = Some(piece);
     }
 
@@ -173,7 +178,7 @@ impl Position {
         let piece_type = piece.piece_type();
         self.pieces_by_color[piece_color] &= nbb;
         self.pieces[piece_color][piece_type] &= nbb;
-        self.all_pieces &= nbb;
+        self.occupied &= nbb;
         self.board[square] = None;
         piece
     }
@@ -230,7 +235,7 @@ impl Position {
         }
 
         // En passante
-        pos.en_passante = {
+        pos.en_passant = {
             if tokens[3] == "-" {
                 None
             } else {
@@ -310,7 +315,7 @@ impl Position {
         s.push(' ');
 
         // En Passant
-        match self.en_passante {
+        match self.en_passant {
             None => s.push('-'),
             Some(sq) => s.push_str(&sq.to_str()),
         }
@@ -325,6 +330,154 @@ impl Position {
         s.push_str(&number_of_full_moves.to_string());
 
         s
+    }
+
+    pub fn generate_moves(&self, moves: &mut MoveList) {
+        let us = self.pieces_by_color[self.side_to_move];
+        let them = self.pieces_by_color[self.side_to_move.switch()];
+        let occupied = self.occupied;
+        let destinations = !us; // Everything, but our own pieces
+
+        Self::generate_move_helper(
+            moves,
+            self.pieces[self.side_to_move][PieceType::Bishop],
+            occupied,
+            destinations,
+            attacks::bishop_attacks,
+        );
+        Self::generate_move_helper(
+            moves,
+            self.pieces[self.side_to_move][PieceType::Rook],
+            occupied,
+            destinations,
+            attacks::rook_attacks,
+        );
+
+        Self::generate_move_helper(
+            moves,
+            self.pieces[self.side_to_move][PieceType::Queen],
+            occupied,
+            destinations,
+            attacks::queen_attacks,
+        );
+        Self::generate_move_helper(
+            moves,
+            self.pieces[self.side_to_move][PieceType::King],
+            occupied,
+            destinations,
+            |sq, _| attacks::KING_ATTACKS[sq],
+        );
+        Self::generate_move_helper(
+            moves,
+            self.pieces[self.side_to_move][PieceType::Knight],
+            occupied,
+            destinations,
+            |sq, _| attacks::KNIGHT_ATTACKS[sq],
+        );
+        Self::generate_pawn_moves(
+            moves,
+            self.side_to_move,
+            self.pieces[self.side_to_move][PieceType::Pawn],
+            them,
+            occupied,
+            self.en_passant,
+        );
+        self.generate_castling_moves(moves);
+    }
+
+    fn generate_move_helper(
+        moves: &mut MoveList,
+        mut froms: Bitboard,
+        occupied: Bitboard,
+        destinations: Bitboard,
+        attacks: fn(Square, Bitboard) -> Bitboard,
+    ) {
+        while let Some(from) = froms.pop_lsb_square() {
+            let mut tos = attacks(from, occupied) & destinations;
+            while let Some(to) = tos.pop_lsb_square() {
+                moves.push(Move::new(from, to, MoveType::Normal, None));
+            }
+        }
+    }
+
+    fn generate_pawn_moves(
+        moves: &mut MoveList,
+        color: Color,
+        mut froms: Bitboard,
+        them: Bitboard,
+        occupied: Bitboard,
+        en_passant: Option<Square>,
+    ) {
+        // Attacks and pushes
+        while let Some(from) = froms.pop_lsb_square() {
+            let mut tos = (attacks::PAWN_ATTACKS[color][from] & them)
+                | pushes(color, Bitboard::from_square(from), occupied);
+            while let Some(to) = tos.pop_lsb_square() {
+                if (color == Color::White && to.rank() == Rank::R8)
+                    || (color == Color::Black && to.rank() == Rank::R1)
+                {
+                    moves.push(Move::new(
+                        from,
+                        to,
+                        MoveType::Promotion,
+                        Some(PieceType::Knight),
+                    ));
+                    moves.push(Move::new(
+                        from,
+                        to,
+                        MoveType::Promotion,
+                        Some(PieceType::Bishop),
+                    ));
+                    moves.push(Move::new(
+                        from,
+                        to,
+                        MoveType::Promotion,
+                        Some(PieceType::Rook),
+                    ));
+                    moves.push(Move::new(
+                        from,
+                        to,
+                        MoveType::Promotion,
+                        Some(PieceType::Queen),
+                    ));
+                } else {
+                    moves.push(Move::new(from, to, MoveType::Normal, None));
+                }
+            }
+            // En Passant
+            if let Some(en_passant_square) = en_passant {
+                let mut attacking_pawns =
+                    attacks::PAWN_ATTACKS[color][from] & Bitboard::from_square(en_passant_square);
+                while let Some(to) = attacking_pawns.pop_lsb_square() {
+                    moves.push(Move::new(from, to, MoveType::EnPassant, None));
+                }
+            }
+        }
+    }
+
+    fn generate_castling_moves(&self, moves: &mut MoveList) {
+        for castling in [
+            CASTLING_WHITE_KING,
+            CASTLING_WHITE_QUEEN,
+            CASTLING_BLACK_KING,
+            CASTLING_BLACK_QUEEN,
+        ] {
+            if !self.can_do_castle(castling) {
+                continue;
+            }
+
+            let from = self.pieces[self.side_to_move][PieceType::King]
+                .lsb_square()
+                .unwrap();
+            let to = {
+                if castling & (CASTLING_WHITE_KING | CASTLING_BLACK_KING) > 0 {
+                    from.next().next()
+                } else {
+                    from.previous().previous()
+                }
+            };
+            moves.push(Move::new(from, to, MoveType::Castling, None));
+        }
     }
 }
 

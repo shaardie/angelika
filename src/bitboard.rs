@@ -158,8 +158,14 @@ impl Bitboard {
         Some(self.0.trailing_zeros())
     }
 
-    pub fn lsb_square(self) -> Square {
-        Square::new(self.lsb().unwrap() as u8)
+    pub fn lsb_square(self) -> Option<Square> {
+        Some(Square::new(self.lsb()? as u8))
+    }
+
+    pub fn pop_lsb_square(&mut self) -> Option<Square> {
+        let lsb = self.lsb_square()?;
+        self.0 &= self.0 - 1;
+        Some(lsb)
     }
 }
 
@@ -244,6 +250,6 @@ mod test {
 
     #[test]
     fn test_least_significant_one_bit() {
-        assert_eq!(Bitboard(0b1000).lsb_square(), Square::new(3));
+        assert_eq!(Bitboard(0b1000).lsb_square(), Some(Square::new(3)));
     }
 }
