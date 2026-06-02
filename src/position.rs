@@ -479,6 +479,95 @@ impl Position {
             moves.push(Move::new(from, to, MoveType::Castling, None));
         }
     }
+
+    pub fn make_move(&mut self, m: Move) {
+        let mut reset_half_move_clock = false;
+        let from = m.from();
+        let to = m.to();
+
+        // Update en passant
+        self.en_passant = None;
+
+        // Remove target piece
+        if self.board[to].is_some() {
+            self.delete_piece(to);
+            reset_half_move_clock = true;
+        }
+
+        // Update castling
+        for sq in [from, to] {
+            match sq {
+                Square::A1 => self.castling &= !CASTLING_WHITE_QUEEN,
+                Square::H1 => self.castling &= !CASTLING_WHITE_KING,
+                Square::A8 => self.castling &= !CASTLING_BLACK_QUEEN,
+                Square::H8 => self.castling &= !CASTLING_BLACK_KING,
+                Square::E1 => self.castling &= !(CASTLING_WHITE_QUEEN | CASTLING_WHITE_KING),
+                Square::E8 => self.castling &= !(CASTLING_BLACK_QUEEN | CASTLING_BLACK_KING),
+                _ => {}
+            }
+        }
+
+        // Move piece
+        let p = self.move_piece(from, to);
+        if p.piece_type() == PieceType::Pawn {
+            reset_half_move_clock = true;
+            if (from as i8 - to as i8).unsigned_abs() as usize == 2 * File::NUM {
+                let en_passant = match self.side_to_move {
+                    Color::White => Square::new(to as u8 - File::NUM as u8),
+                    Color::Black => Square::new(to as u8 + File::NUM as u8),
+                };
+                self.en_passant = Some(en_passant)
+            }
+        }
+
+        // custom handling for special move types
+        match m.move_type() {
+            MoveType::Normal => {}
+            MoveType::Castling => {
+                match to {
+                    Square::C1 => {
+                        self.move_piece(Square::A1, Square::D1);
+                    }
+                    Square::G1 => {
+                        self.move_piece(Square::H1, Square::F1);
+                    }
+                    Square::C8 => {
+                        self.move_piece(Square::A8, Square::D8);
+                    }
+                    Square::G8 => {
+                        self.move_piece(Square::H8, Square::F8);
+                    }
+                    _ => {}
+                };
+            }
+            MoveType::EnPassant => {
+                let pawn_to_remove = {
+                    match self.side_to_move {
+                        Color::White => Square::new(to as u8 - File::NUM as u8),
+                        Color::Black => Square::new(to as u8 + File::NUM as u8),
+                    }
+                };
+                self.delete_piece(pawn_to_remove);
+            }
+            MoveType::Promotion => {
+                self.delete_piece(to);
+                self.set_piece(
+                    Piece::new_from_color_and_type(self.side_to_move, m.promotion().unwrap()),
+                    to,
+                );
+            }
+        }
+
+        self.ply += 1;
+        self.side_to_move = self.side_to_move.switch();
+        self.half_move_clock = {
+            if reset_half_move_clock {
+                0
+            } else {
+                self.half_move_clock + 1
+            }
+        }
+    }
 }
 
 #[cfg(test)]

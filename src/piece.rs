@@ -86,6 +86,10 @@ impl Piece {
         unsafe { transmute(i) }
     }
 
+    pub fn new_from_color_and_type(c: Color, pt: PieceType) -> Self {
+        Self::new((c as u8 * 8) + pt as u8)
+    }
+
     pub fn from_char(c: char) -> Result<Self, &'static str> {
         let idx = Self::PIECE_TO_CHAR
             .chars()
