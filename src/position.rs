@@ -86,7 +86,10 @@ impl Position {
     fn square_attacked_by_color(&self, square: Square, color: Color) -> Bitboard {
         attacks::KING_ATTACKS[square] & self.pieces[color][PieceType::King]
             | attacks::KNIGHT_ATTACKS[square] & self.pieces[color][PieceType::Knight]
-            | attacks::PAWN_ATTACKS[color][square] & self.pieces[color][PieceType::Pawn]
+            // "Which pawns of `color` attack `square`?"
+            // Pawn attacks are asymmetric: a white pawn on d3 attacks e4, but not vice versa.
+            // To find attacking pawns, look in the opposite direction.
+            | attacks::PAWN_ATTACKS[color.switch()][square] & self.pieces[color][PieceType::Pawn]
             | attacks::bishop_attacks(square, self.occupied) & self.pieces[color][PieceType::Bishop]
             | attacks::rook_attacks(square, self.occupied) & self.pieces[color][PieceType::Rook]
             | attacks::queen_attacks(square, self.occupied) & self.pieces[color][PieceType::Queen]
