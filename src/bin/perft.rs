@@ -11,10 +11,10 @@ fn perft(pos: &mut Position, depth: u32) -> u64 {
 
     let mut moves = MoveList::default();
     pos.generate_moves(&mut moves);
-    for idx in 1..moves.len() {
+    for idx in 0..moves.len() {
         let mut new_pos = *pos;
         new_pos.make_move(moves.get(idx));
-        if new_pos.is_check() {
+        if !new_pos.is_legal() {
             continue;
         }
         nodes += perft(&mut new_pos, depth - 1)
@@ -34,5 +34,5 @@ fn main() {
     let depth: u32 = args[2].parse().expect("depth should be number");
 
     let mut pos = Position::from_fen(fen).expect("unable to parse fen string");
-    print!("{}", perft(&mut pos, depth))
+    print!("{}\n", perft(&mut pos, depth))
 }

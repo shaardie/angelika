@@ -92,11 +92,17 @@ impl Position {
             | attacks::queen_attacks(square, self.occupied) & self.pieces[color][PieceType::Queen]
     }
 
+    fn color_in_check(&self, color: Color) -> bool {
+        let sq = self.pieces[color][PieceType::King].lsb_square().unwrap();
+        self.square_attacked_by_color(sq, color.switch()) != Bitboard::EMPTY
+    }
+
     pub fn is_check(&self) -> bool {
-        let sq = self.pieces[self.side_to_move][PieceType::King]
-            .lsb_square()
-            .unwrap();
-        self.square_attacked_by_color(sq, self.side_to_move.switch()) != Bitboard::EMPTY
+        self.color_in_check(self.side_to_move)
+    }
+
+    pub fn is_legal(&self) -> bool {
+        !self.color_in_check(self.side_to_move.switch())
     }
 
     // only castling consts are allowed as input
