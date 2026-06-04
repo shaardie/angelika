@@ -1,5 +1,6 @@
 pub mod attacks;
 pub mod bitboard;
+pub mod castling;
 pub mod chessmove;
 pub mod chessmovelist;
 pub mod magic;

@@ -1,16 +1,11 @@
 use crate::attacks;
 use crate::bitboard::Bitboard;
+use crate::castling::{CastleMove, CastleSide, Castling};
 use crate::chessmove::{Move, MoveType};
 use crate::chessmovelist::MoveList;
 use crate::piece::{Color, Piece, PieceType};
 use crate::pushes::pushes;
 use crate::square::{File, Rank, Square};
-
-type Castling = u8;
-const CASTLING_WHITE_KING: Castling = 0b0001;
-const CASTLING_WHITE_QUEEN: Castling = 0b0010;
-const CASTLING_BLACK_KING: Castling = 0b0100;
-const CASTLING_BLACK_QUEEN: Castling = 0b1000;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
@@ -33,7 +28,7 @@ impl Default for Position {
             occupied: Bitboard::EMPTY,
             board: [None; Square::NUM],
             side_to_move: Color::White,
-            castling: 0,
+            castling: Castling::NONE,
             en_passant: None,
             half_move_clock: 0,
             ply: 0,
@@ -60,10 +55,7 @@ impl Position {
             occupied: Bitboard::EMPTY,
             board,
             side_to_move: Color::White,
-            castling: CASTLING_WHITE_KING
-                | CASTLING_WHITE_QUEEN
-                | CASTLING_BLACK_KING
-                | CASTLING_BLACK_QUEEN,
+            castling: Castling::ANY,
             en_passant: None,
             half_move_clock: 0,
             ply: 0,
@@ -108,25 +100,18 @@ impl Position {
         !self.color_in_check(self.side_to_move.switch())
     }
 
-    // only castling consts are allowed as input
-    pub fn can_do_castle(&self, castling: Castling) -> bool {
+    pub fn can_do_castle_move(&self, castle_move: CastleMove) -> bool {
         // King and one of the Rooks hasn't moved, so castling in possible in theory
-        if castling & self.castling == 0 {
+        if !self.castling.contains(Castling::from(castle_move)) {
             return false;
         }
-
-        let color = if castling & (CASTLING_WHITE_KING | CASTLING_WHITE_QUEEN) > 0 {
-            Color::White
-        } else {
-            Color::Black
-        };
-
-        let queen_side = castling & (CASTLING_WHITE_QUEEN | CASTLING_BLACK_QUEEN) > 0;
 
         // Correct color to castle
-        if color != self.side_to_move {
+        if castle_move.color() != self.side_to_move {
             return false;
         }
+
+        let queen_side = castle_move.side() == CastleSide::Queen;
 
         // Can not castle, if in check
         if self.is_check() {
@@ -231,13 +216,13 @@ impl Position {
         }
 
         // Castling
-        pos.castling = 0;
+        pos.castling = Castling::NONE;
         for c in tokens[2].chars() {
             match c {
-                'K' => pos.castling |= CASTLING_WHITE_KING,
-                'Q' => pos.castling |= CASTLING_WHITE_QUEEN,
-                'k' => pos.castling |= CASTLING_BLACK_KING,
-                'q' => pos.castling |= CASTLING_BLACK_QUEEN,
+                'K' => pos.castling = pos.castling.add(Castling::WHITE_KING),
+                'Q' => pos.castling = pos.castling.add(Castling::WHITE_QUEEN),
+                'k' => pos.castling = pos.castling.add(Castling::BLACK_KING),
+                'q' => pos.castling = pos.castling.add(Castling::BLACK_QUEEN),
                 '-' => break,
                 _ => return Err("invalid castling token"),
             }
@@ -305,19 +290,19 @@ impl Position {
         }
 
         // Castling
-        if self.castling == 0 {
+        if self.castling == Castling::NONE {
             s.push('-');
         } else {
-            if self.castling & CASTLING_WHITE_KING != 0 {
+            if self.castling.contains(Castling::WHITE_KING) {
                 s.push('K');
             }
-            if self.castling & CASTLING_WHITE_QUEEN != 0 {
+            if self.castling.contains(Castling::WHITE_QUEEN) {
                 s.push('Q');
             }
-            if self.castling & CASTLING_BLACK_KING != 0 {
+            if self.castling.contains(Castling::BLACK_KING) {
                 s.push('k');
             }
-            if self.castling & CASTLING_BLACK_QUEEN != 0 {
+            if self.castling.contains(Castling::BLACK_QUEEN) {
                 s.push('q');
             }
         };
@@ -465,13 +450,8 @@ impl Position {
     }
 
     fn generate_castling_moves(&self, moves: &mut MoveList) {
-        for castling in [
-            CASTLING_WHITE_KING,
-            CASTLING_WHITE_QUEEN,
-            CASTLING_BLACK_KING,
-            CASTLING_BLACK_QUEEN,
-        ] {
-            if !self.can_do_castle(castling) {
+        for castle_move in CastleMove::ALL {
+            if !self.can_do_castle_move(castle_move) {
                 continue;
             }
 
@@ -479,7 +459,7 @@ impl Position {
                 .lsb_square()
                 .unwrap();
             let to = {
-                if castling & (CASTLING_WHITE_KING | CASTLING_BLACK_KING) > 0 {
+                if castle_move.side() == CastleSide::King {
                     from.next().next()
                 } else {
                     from.previous().previous()
@@ -506,12 +486,22 @@ impl Position {
         // Update castling
         for sq in [from, to] {
             match sq {
-                Square::A1 => self.castling &= !CASTLING_WHITE_QUEEN,
-                Square::H1 => self.castling &= !CASTLING_WHITE_KING,
-                Square::A8 => self.castling &= !CASTLING_BLACK_QUEEN,
-                Square::H8 => self.castling &= !CASTLING_BLACK_KING,
-                Square::E1 => self.castling &= !(CASTLING_WHITE_QUEEN | CASTLING_WHITE_KING),
-                Square::E8 => self.castling &= !(CASTLING_BLACK_QUEEN | CASTLING_BLACK_KING),
+                Square::A1 => self.castling = self.castling.remove(Castling::WHITE_QUEEN),
+                Square::H1 => self.castling = self.castling.remove(Castling::WHITE_KING),
+                Square::A8 => self.castling = self.castling.remove(Castling::BLACK_QUEEN),
+                Square::H8 => self.castling = self.castling.remove(Castling::BLACK_KING),
+                Square::E1 => {
+                    self.castling = self
+                        .castling
+                        .remove(Castling::WHITE_QUEEN)
+                        .remove(Castling::WHITE_KING)
+                }
+                Square::E8 => {
+                    self.castling = self
+                        .castling
+                        .remove(Castling::BLACK_QUEEN)
+                        .remove(Castling::BLACK_KING)
+                }
                 _ => {}
             }
         }
