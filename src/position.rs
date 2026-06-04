@@ -10,10 +10,10 @@ use crate::square::{File, Rank, Square};
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Position {
     pieces_by_color: [Bitboard; Color::NUM],
-    pieces: [[Bitboard; PieceType::NUM]; Color::NUM],
+    pub pieces: [[Bitboard; PieceType::NUM]; Color::NUM],
     occupied: Bitboard,
     board: [Option<Piece>; Square::NUM],
-    side_to_move: Color,
+    pub side_to_move: Color,
     castling: Castling,
     en_passant: Option<Square>,
     half_move_clock: u8,

@@ -3,6 +3,7 @@ pub mod bitboard;
 pub mod castling;
 pub mod chessmove;
 pub mod chessmovelist;
+pub mod evaluation;
 pub mod magic;
 pub mod piece;
 pub mod position;

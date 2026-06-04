@@ -43,6 +43,14 @@ pub enum PieceType {
 
 impl PieceType {
     pub const NUM: usize = 6;
+    pub const ALL: [Self; Self::NUM] = [
+        Self::Pawn,
+        Self::Knight,
+        Self::Bishop,
+        Self::Rook,
+        Self::Queen,
+        Self::King,
+    ];
     pub fn new(i: u8) -> Self {
         unsafe { transmute(i) }
     }
