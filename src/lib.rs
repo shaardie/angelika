@@ -7,5 +7,6 @@ pub mod evaluation;
 pub mod magic;
 pub mod piece;
 pub mod position;
+pub mod principal_variation;
 pub mod pushes;
 pub mod square;
