@@ -9,4 +9,5 @@ pub mod piece;
 pub mod position;
 pub mod principal_variation;
 pub mod pushes;
+pub mod search;
 pub mod square;

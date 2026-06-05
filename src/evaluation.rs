@@ -3,6 +3,10 @@ use crate::{
     position::Position,
 };
 
+pub const INF: i16 = i16::MAX;
+pub const MAX_PLIES: i16 = 100;
+pub const MATE: i16 = INF - MAX_PLIES;
+
 const PIECE_TYPE_VALUE: [i16; PieceType::NUM] = [100, 300, 300, 500, 900, 0];
 
 pub fn evaluation(pos: &Position) -> i16 {

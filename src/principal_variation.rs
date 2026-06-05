@@ -29,6 +29,9 @@ impl Default for PrincipalVariation {
 impl PrincipalVariation {
     /// Returns the best move, or `None` if the PV is empty.
     pub fn best_move(&self) -> Option<Move> {
+        if self.len == 0 {
+            return None;
+        }
         self.moves[0]
     }
 
@@ -39,6 +42,11 @@ impl PrincipalVariation {
         for idx in 0..child.len {
             self.moves[idx + 1] = child.moves[idx];
         }
+    }
+
+    /// Clear PV
+    pub fn clear(&mut self) {
+        self.len = 0
     }
 }
 
@@ -68,6 +76,18 @@ mod tests {
 
         assert_eq!(pv.best_move(), Some(m));
         assert_eq!(pv.len, 1);
+    }
+
+    #[test]
+    fn clear_pv() {
+        let mut pv = PrincipalVariation::default();
+        let child = PrincipalVariation::default();
+        let m = make_move(Square::E2, Square::E4);
+
+        pv.update(m, &child);
+
+        pv.clear();
+        assert_eq!(pv.len, 0)
     }
 
     #[test]
