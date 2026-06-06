@@ -4,81 +4,105 @@ use crate::{
     principal_variation::PrincipalVariation,
 };
 
-/// Searches the position to the given depth using negamax with alpha-beta pruning.
-///
-/// - `alpha`: best score the side to move can guarantee so far
-/// - `beta`: best score the opponent can guarantee so far
-/// - `depth`: remaining depth to search
-/// - `ply`: distance from the root position (used for mate scoring)
-/// - `pv`: filled with the best line of play found
-///
-/// Returns the score from the side to move's perspective.
-fn alpha_beta(
-    pos: &Position,
-    mut alpha: i16,
-    beta: i16,
-    depth: u8,
-    ply: u8,
-    pv: &mut PrincipalVariation,
-) -> i16 {
-    if depth == 0 {
-        pv.clear();
-        return evaluation::evaluation(pos);
+#[derive(Debug, Default)]
+pub struct Search {
+    pv: Option<PrincipalVariation>,
+}
+
+impl Search {
+    pub fn search(&mut self, pos: &Position) {
+        self.iterative_search(pos, 100);
     }
 
-    let mut best_store: i16 = -evaluation::INF;
-    let mut child_pv = PrincipalVariation::default();
-    let mut legal_moves: u8 = 0;
+    fn iterative_search(&mut self, pos: &Position, max_depth: u8) {
+        let alpha = -evaluation::INF;
+        let beta = evaluation::INF;
+        for depth in 1..max_depth + 1 {
+            let mut pv = PrincipalVariation::default();
+            let score = self.alpha_beta(pos, alpha, beta, depth, 0, &mut pv);
+            println!("info depth {} score cp {} pv {}", depth, score, pv);
+            self.pv = Some(pv);
+        }
+    }
 
-    let mut moves = MoveList::default();
-    pos.generate_moves(&mut moves);
-    for idx in 0..moves.len() {
-        let m = moves.get(idx);
-
-        // Create new position and make move.
-        // Only continue, if the new position is actually legal.
-        let mut new_pos = *pos;
-        new_pos.make_move(m);
-        if !new_pos.is_legal() {
-            continue;
+    /// Searches the position to the given depth using negamax with alpha-beta pruning.
+    ///
+    /// - `alpha`: best score the side to move can guarantee so far
+    /// - `beta`: best score the opponent can guarantee so far
+    /// - `depth`: remaining depth to search
+    /// - `ply`: distance from the root position (used for mate scoring)
+    /// - `pv`: filled with the best line of play found
+    ///
+    /// Returns the score from the side to move's perspective.
+    fn alpha_beta(
+        &self,
+        pos: &Position,
+        mut alpha: i16,
+        beta: i16,
+        depth: u8,
+        ply: u8,
+        pv: &mut PrincipalVariation,
+    ) -> i16 {
+        if depth == 0 {
+            pv.clear();
+            return evaluation::evaluation(pos);
         }
 
-        legal_moves += 1;
+        let mut best_score: i16 = -evaluation::INF;
+        let mut child_pv = PrincipalVariation::default();
+        let mut legal_moves: u8 = 0;
 
-        // Calculate the score for the new position
-        let score = -alpha_beta(&new_pos, -beta, -alpha, depth - 1, ply + 1, &mut child_pv);
+        let mut moves = MoveList::default();
+        pos.generate_moves(&mut moves);
+        for idx in 0..moves.len() {
+            let m = moves.get(idx);
 
-        // If the score is better than our best result,
-        // use it as the new best result
-        if score > best_store {
-            best_store = score;
+            // Create new position and make move.
+            // Only contirue, if the new position is actually legal.
+            let mut new_pos = *pos;
+            new_pos.make_move(m);
+            if !new_pos.is_legal() {
+                continue;
+            }
 
-            // If the best result of this run is better than the best garanteed result (alpha), use
-            // this as the new garanteed result and also update principal variation with the new
-            // best move found
-            if score > alpha {
-                pv.update(m, &child_pv);
-                alpha = score;
+            legal_moves += 1;
+
+            // Calculate the score for the new position
+            let score =
+                -self.alpha_beta(&new_pos, -beta, -alpha, depth - 1, ply + 1, &mut child_pv);
+
+            // If the score is better than our best result,
+            // use it as the new best result
+            if score > best_score {
+                best_score = score;
+
+                // If the best result of this run is better than the best garanteed result (alpha), use
+                // this as the new garanteed result and also update principal variation with the new
+                // best move found
+                if score > alpha {
+                    pv.update(m, &child_pv);
+                    alpha = score;
+                }
+            }
+
+            // if the score is better than the best garanteed result of the opponent, he will never
+            // allow that we come to this point, so we can stop the evaluation of this sub-tree.
+            if score >= beta {
+                break;
             }
         }
 
-        // if the score is better than the best garanteed result of the opponent, he will never
-        // allow that we come to this point, so we can stop the evaluation of this sub-tree.
-        if score >= beta {
-            break;
+        // No legal moves: checkmate or stalemate
+        if legal_moves == 0 {
+            return if pos.is_check() {
+                -evaluation::INF + ply as i16
+            } else {
+                0
+            };
         }
-    }
 
-    // No legal moves: checkmate or stalemate
-    if legal_moves == 0 {
-        return if pos.is_check() {
-            -evaluation::INF + ply as i16
-        } else {
-            0
-        };
+        best_score
     }
-
-    best_store
 }
 
 #[cfg(test)]
@@ -89,7 +113,14 @@ mod tests {
     fn search(fen: &str, depth: u8) -> (i16, PrincipalVariation) {
         let pos = Position::from_fen(fen).unwrap();
         let mut pv = PrincipalVariation::default();
-        let score = alpha_beta(&pos, -evaluation::INF, evaluation::INF, depth, 0, &mut pv);
+        let score = Search::default().alpha_beta(
+            &pos,
+            -evaluation::INF,
+            evaluation::INF,
+            depth,
+            0,
+            &mut pv,
+        );
         (score, pv)
     }
 
@@ -113,5 +144,12 @@ mod tests {
     fn stalemate_is_draw() {
         let (score, _) = search("k7/2Q5/1K6/8/8/8/8/8 b - - 0 1", 1);
         assert_eq!(score, 0);
+    }
+
+    #[test]
+    fn iterative_search_test() {
+        let mut search = Search::default();
+        search.iterative_search(&Position::starting_position(), 5);
+        assert!(search.pv.is_some());
     }
 }
