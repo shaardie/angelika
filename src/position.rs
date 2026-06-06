@@ -87,6 +87,39 @@ impl Position {
             | attacks::queen_attacks(square, self.occupied) & self.pieces[color][PieceType::Queen]
     }
 
+    pub fn move_from_string(&self, s: &str) -> Result<Move, &'static str> {
+        if s.len() < 4 {
+            return Err("input to short");
+        }
+        let from = Square::from_chars(&s[0..2])?;
+        let to = Square::from_chars(&s[2..4])?;
+
+        let p = self.get_piece(from).ok_or("no piece on from square")?;
+
+        let c = p.color();
+        if c != self.side_to_move {
+            return Err("not side to move");
+        }
+
+        let pt = p.piece_type();
+        // Castling
+        if pt == PieceType::King && (from as i8 - to as i8).abs() == 2 {
+            return Ok(Move::new(from, to, MoveType::Castling, None));
+        }
+        // En Passant and Promotion
+        if pt == PieceType::Pawn {
+            if from.file() != to.file() && self.get_piece(to).is_none() {
+                return Ok(Move::new(from, to, MoveType::EnPassant, None));
+            }
+            if s.len() == 5 {
+                let promotion_pt = PieceType::from_char(s.chars().nth(4).unwrap())?;
+                return Ok(Move::new(from, to, MoveType::Promotion, Some(promotion_pt)));
+            }
+        }
+
+        Ok(Move::new(from, to, MoveType::Normal, None))
+    }
+
     fn color_in_check(&self, color: Color) -> bool {
         let sq = self.pieces[color][PieceType::King].lsb_square().unwrap();
         self.square_attacked_by_color(sq, color.switch()) != Bitboard::EMPTY
@@ -151,8 +184,8 @@ impl Position {
         true
     }
 
-    pub fn get_piece(&self, square: Square) -> Piece {
-        self.board[square].unwrap()
+    pub fn get_piece(&self, square: Square) -> Option<Piece> {
+        self.board[square]
     }
 
     pub fn set_piece(&mut self, piece: Piece, square: Square) {

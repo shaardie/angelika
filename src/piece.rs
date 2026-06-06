@@ -62,6 +62,16 @@ impl PieceType {
     pub fn new(i: u8) -> Self {
         unsafe { transmute(i) }
     }
+    pub fn from_char(c: char) -> Result<Self, &'static str> {
+        let idx = Self::TO_CHAR
+            .chars()
+            .position(|candidate| candidate == c)
+            .ok_or("invalid piece type char")?;
+        if idx == 0 {
+            return Err("Invalid piece char");
+        }
+        Ok(PieceType::new(idx as u8))
+    }
 }
 
 impl<T> Index<PieceType> for [T] {

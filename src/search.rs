@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::{
+    chessmove::Move,
     chessmovelist::MoveList,
     evaluation::{self, is_mate},
     position::Position,
@@ -16,7 +17,7 @@ use crate::{
     search_parameters::SearchParameters,
 };
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Search {
     nodes: u64,
     pv: Option<PrincipalVariation>,
@@ -24,13 +25,26 @@ pub struct Search {
     stop: Arc<AtomicBool>,
 }
 
-impl Search {
-    pub fn search(&mut self, pos: &Position, search_parameters: SearchParameters) {
-        self.nodes = 0;
-        self.pv = None;
-        self.score = None;
-        self.stop = Arc::new(AtomicBool::new(false));
+impl Default for Search {
+    fn default() -> Self {
+        Self {
+            nodes: 0,
+            pv: None,
+            score: None,
+            stop: Arc::new(AtomicBool::new(false)),
+        }
+    }
+}
 
+impl Search {
+    pub fn new(stop: Arc<AtomicBool>) -> Self {
+        Search {
+            stop,
+            ..Default::default()
+        }
+    }
+
+    pub fn search(&mut self, pos: &Position, search_parameters: SearchParameters) {
         if let Some(duration) = search_parameters.time_for_move(pos.side_to_move) {
             println!("info string search for {}ms", duration.as_millis());
             let stop_clone = self.stop.clone();
@@ -42,6 +56,13 @@ impl Search {
 
         let max_depth = search_parameters.depth.unwrap_or(100);
         self.iterative_search(pos, max_depth);
+        let bestmove = self
+            .pv
+            .clone()
+            .unwrap_or_default()
+            .best_move()
+            .unwrap_or(Move::NULL);
+        println!("bestmove {}", bestmove);
     }
 
     fn iterative_search(&mut self, pos: &Position, max_depth: u8) {
