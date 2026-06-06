@@ -52,6 +52,7 @@ fn main() {
                     }
                 }
                 if rest.is_empty() {
+                    buffer.clear();
                     continue;
                 }
                 if rest[0] != "moves" {
@@ -69,27 +70,27 @@ fn main() {
                 while i < rest.len() {
                     match rest[i] {
                         "wtime" => {
-                            search_parameters.wtime = tokens.get(i + 1).and_then(|s| s.parse().ok())
+                            search_parameters.wtime = rest.get(i + 1).and_then(|s| s.parse().ok())
                         }
                         "btime" => {
-                            search_parameters.btime = tokens.get(i + 1).and_then(|s| s.parse().ok())
+                            search_parameters.btime = rest.get(i + 1).and_then(|s| s.parse().ok())
                         }
                         "winc" => {
-                            search_parameters.winc = tokens.get(i + 1).and_then(|s| s.parse().ok())
+                            search_parameters.winc = rest.get(i + 1).and_then(|s| s.parse().ok())
                         }
                         "binc" => {
-                            search_parameters.binc = tokens.get(i + 1).and_then(|s| s.parse().ok())
+                            search_parameters.binc = rest.get(i + 1).and_then(|s| s.parse().ok())
                         }
                         "movestogo" => {
                             search_parameters.movestogo =
-                                tokens.get(i + 1).and_then(|s| s.parse().ok())
+                                rest.get(i + 1).and_then(|s| s.parse().ok())
                         }
                         "depth" => {
-                            search_parameters.depth = tokens.get(i + 1).and_then(|s| s.parse().ok())
+                            search_parameters.depth = rest.get(i + 1).and_then(|s| s.parse().ok())
                         }
                         "movetime" => {
                             search_parameters.movetime =
-                                tokens.get(i + 1).and_then(|s| s.parse().ok())
+                                rest.get(i + 1).and_then(|s| s.parse().ok())
                         }
                         "infinite" => {
                             search_parameters.infinite = true;
