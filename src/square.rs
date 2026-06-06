@@ -1,5 +1,6 @@
 use std::{
     char,
+    fmt::Display,
     ops::{Index, IndexMut},
 };
 
@@ -22,6 +23,16 @@ pub enum Square {
 #[rustfmt::skip]
 pub enum Rank {
     R1, R2, R3, R4, R5, R6, R7, R8,
+}
+
+impl Display for Rank {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            Self::RANK_TO_CHAR.as_bytes()[*self as usize] as char
+        )
+    }
 }
 
 impl Rank {
@@ -49,9 +60,6 @@ impl Rank {
         }
         Ok(Self::new(digit - 1))
     }
-    pub fn to_char(self) -> char {
-        Self::RANK_TO_CHAR.as_bytes()[self as usize] as char
-    }
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -59,6 +67,16 @@ impl Rank {
 #[rustfmt::skip]
 pub enum File {
     A, B, C, D, E, F, G, H,
+}
+
+impl Display for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            Self::FILE_TO_CHAR.as_bytes()[*self as usize] as char
+        )
+    }
 }
 
 impl File {
@@ -87,8 +105,11 @@ impl File {
                 .ok_or("Invalid file char")? as u8,
         ))
     }
-    pub fn to_char(self) -> char {
-        Self::FILE_TO_CHAR.as_bytes()[self as usize] as char
+}
+
+impl Display for Square {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.file(), self.rank())
     }
 }
 
@@ -125,13 +146,6 @@ impl Square {
         let file = File::from_char(chars.next().ok_or("Empty string")?)?;
         let rank = Rank::from_char(chars.next().ok_or("Missing rank")?)?;
         Ok(Self::from_rank_and_file(rank, file))
-    }
-
-    pub fn to_str(self) -> String {
-        let mut s = String::new();
-        s.push(self.file().to_char());
-        s.push(self.rank().to_char());
-        s
     }
 
     pub const fn next(self) -> Self {

@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{piece::PieceType, square::Square};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -24,6 +26,16 @@ impl MoveType {
 // 16-31 are for the score
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Move(u32);
+
+impl Display for Move {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}{}", self.from(), self.to())?;
+        if let Some(pt) = self.promotion() {
+            write!(f, "{}", pt)?;
+        }
+        Ok(())
+    }
+}
 
 impl Move {
     pub const NULL: Self = Move(0);

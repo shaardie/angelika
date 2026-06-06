@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     mem::transmute,
     ops::{Index, IndexMut},
 };
@@ -41,8 +42,15 @@ pub enum PieceType {
     King,
 }
 
+impl Display for PieceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Self::TO_CHAR.as_bytes()[*self as usize] as char)
+    }
+}
+
 impl PieceType {
     pub const NUM: usize = 6;
+    const TO_CHAR: &str = " pkbrqK";
     pub const ALL: [Self; Self::NUM] = [
         Self::Pawn,
         Self::Knight,
@@ -86,9 +94,15 @@ pub enum Piece {
     BlackKing,
 }
 
+impl Display for Piece {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Self::TO_CHAR.as_bytes()[*self as usize] as char)
+    }
+}
+
 impl Piece {
     pub const NUM: usize = Color::NUM * PieceType::NUM;
-    const PIECE_TO_CHAR: &str = " PNBRQK  pnbrqk";
+    const TO_CHAR: &str = " PNBRQK  pnbrqk";
 
     pub fn new(i: u8) -> Self {
         unsafe { transmute(i) }
@@ -99,7 +113,7 @@ impl Piece {
     }
 
     pub fn from_char(c: char) -> Result<Self, &'static str> {
-        let idx = Self::PIECE_TO_CHAR
+        let idx = Self::TO_CHAR
             .chars()
             .position(|candidate| candidate == c)
             .ok_or("invalid piece char")?;
@@ -107,10 +121,6 @@ impl Piece {
             return Err("Invalid piece char");
         }
         Ok(Piece::new(idx as u8))
-    }
-
-    pub fn to_char(self) -> char {
-        Self::PIECE_TO_CHAR.as_bytes()[self as usize] as char
     }
 
     pub const fn piece_type(self) -> PieceType {

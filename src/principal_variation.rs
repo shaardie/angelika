@@ -3,6 +3,8 @@
 //! The PV is the sequence of moves that both sides would play
 //! if they follow the best path found by the search so far.
 
+use std::fmt::Display;
+
 use crate::chessmove::Move;
 
 const MAX_DEPTH: usize = 64;
@@ -23,6 +25,18 @@ impl Default for PrincipalVariation {
             moves: [None; MAX_DEPTH],
             len: 0,
         }
+    }
+}
+
+impl Display for PrincipalVariation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for idx in 0..self.len {
+            if idx > 0 {
+                write!(f, " ")?;
+            }
+            write!(f, "{}", self.moves[idx].unwrap())?;
+        }
+        Ok(())
     }
 }
 

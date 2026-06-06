@@ -269,7 +269,7 @@ impl Position {
                             s.push_str(&empty_count.to_string());
                             empty_count = 0;
                         }
-                        s.push(piece.to_char());
+                        s.push_str(&piece.to_string());
                     }
                 }
             }
@@ -311,7 +311,7 @@ impl Position {
         // En Passant
         match self.en_passant {
             None => s.push('-'),
-            Some(sq) => s.push_str(&sq.to_str()),
+            Some(sq) => s.push_str(&sq.to_string()),
         }
         s.push(' ');
 
