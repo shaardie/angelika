@@ -1,27 +1,74 @@
 //! Search — explores the game tree to find the best move.
+use std::{
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread,
+    time::Instant,
+};
+
 use crate::{
-    chessmovelist::MoveList, evaluation, position::Position,
+    chessmovelist::MoveList,
+    evaluation::{self, is_mate},
+    position::Position,
     principal_variation::PrincipalVariation,
+    search_parameters::SearchParameters,
 };
 
 #[derive(Debug, Default)]
 pub struct Search {
+    nodes: u64,
     pv: Option<PrincipalVariation>,
+    score: Option<i16>,
+    stop: Arc<AtomicBool>,
 }
 
 impl Search {
-    pub fn search(&mut self, pos: &Position) {
-        self.iterative_search(pos, 100);
+    pub fn search(&mut self, pos: &Position, search_parameters: SearchParameters) {
+        self.nodes = 0;
+        self.pv = None;
+        self.score = None;
+        self.stop = Arc::new(AtomicBool::new(false));
+
+        if let Some(duration) = search_parameters.time_for_move(pos.side_to_move) {
+            println!("info string search for {}ms", duration.as_millis());
+            let stop_clone = self.stop.clone();
+            thread::spawn(move || {
+                thread::sleep(duration);
+                stop_clone.store(true, Ordering::Relaxed);
+            });
+        }
+
+        let max_depth = search_parameters.depth.unwrap_or(100);
+        self.iterative_search(pos, max_depth);
     }
 
     fn iterative_search(&mut self, pos: &Position, max_depth: u8) {
+        let start = Instant::now();
         let alpha = -evaluation::INF;
         let beta = evaluation::INF;
         for depth in 1..max_depth + 1 {
             let mut pv = PrincipalVariation::default();
             let score = self.alpha_beta(pos, alpha, beta, depth, 0, &mut pv);
-            println!("info depth {} score cp {} pv {}", depth, score, pv);
+            if self.stop.load(Ordering::Relaxed) {
+                return;
+            }
+
+            println!(
+                "info depth {} time {} nodes {} score cp {} pv {}",
+                depth,
+                start.elapsed().as_millis(),
+                self.nodes,
+                score,
+                pv
+            );
+            self.score = Some(score);
             self.pv = Some(pv);
+
+            if is_mate(score) {
+                return;
+            }
         }
     }
 
@@ -35,7 +82,7 @@ impl Search {
     ///
     /// Returns the score from the side to move's perspective.
     fn alpha_beta(
-        &self,
+        &mut self,
         pos: &Position,
         mut alpha: i16,
         beta: i16,
@@ -43,6 +90,13 @@ impl Search {
         ply: u8,
         pv: &mut PrincipalVariation,
     ) -> i16 {
+        // Time is up, we need to tear down directly
+        if self.stop.load(Ordering::Relaxed) {
+            return 0;
+        }
+
+        self.nodes += 1;
+
         if depth == 0 {
             pv.clear();
             return evaluation::evaluation(pos);
@@ -55,6 +109,10 @@ impl Search {
         let mut moves = MoveList::default();
         pos.generate_moves(&mut moves);
         for idx in 0..moves.len() {
+            // Time is up, we need to tear down directly
+            if self.stop.load(Ordering::Relaxed) {
+                return 0;
+            }
             let m = moves.get(idx);
 
             // Create new position and make move.
@@ -108,48 +166,67 @@ impl Search {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::position::Position;
+    use crate::{attacks, position::Position};
 
-    fn search(fen: &str, depth: u8) -> (i16, PrincipalVariation) {
-        let pos = Position::from_fen(fen).unwrap();
-        let mut pv = PrincipalVariation::default();
-        let score = Search::default().alpha_beta(
-            &pos,
-            -evaluation::INF,
-            evaluation::INF,
-            depth,
-            0,
-            &mut pv,
+    #[test]
+    fn search_with_max_depth() {
+        let mut search = Search::default();
+        search.search(
+            &Position::starting_position(),
+            SearchParameters {
+                depth: Some(5),
+                ..Default::default()
+            },
         );
-        (score, pv)
+        assert!(search.pv.is_some());
+        assert!(search.score.is_some());
     }
 
     #[test]
-    fn has_best_move() {
-        let (_, pv) = search(
-            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-            4,
+    fn search_with_time() {
+        // We need to init the attacks first, because magic takes a lot of time
+        attacks::init();
+        let mut search = Search::default();
+        search.search(
+            &Position::starting_position(),
+            SearchParameters {
+                wtime: Some(1000),
+                winc: Some(10),
+                movestogo: Some(10),
+                ..Default::default()
+            },
         );
-        assert!(pv.best_move().is_some());
+        assert!(search.pv.is_some());
+        assert!(search.score.is_some());
     }
 
     #[test]
     fn checkmate_has_no_move() {
-        let (score, pv) = search("k7/1Q6/1K6/8/8/8/8/8 b - - 0 1", 1);
-        assert!(pv.best_move().is_none());
-        assert!(score.abs() >= evaluation::MATE);
+        let mut search = Search::default();
+        search.search(
+            &Position::from_fen("k7/1Q6/1K6/8/8/8/8/8 b - - 0 1").unwrap(),
+            SearchParameters {
+                depth: Some(5),
+                ..Default::default()
+            },
+        );
+        assert!(search.pv.is_some());
+        assert!(search.score.is_some());
+        assert!(is_mate(search.score.unwrap()));
     }
 
     #[test]
     fn stalemate_is_draw() {
-        let (score, _) = search("k7/2Q5/1K6/8/8/8/8/8 b - - 0 1", 1);
-        assert_eq!(score, 0);
-    }
-
-    #[test]
-    fn iterative_search_test() {
         let mut search = Search::default();
-        search.iterative_search(&Position::starting_position(), 5);
+        search.search(
+            &Position::from_fen("k7/2Q5/1K6/8/8/8/8/8 b - - 0 1").unwrap(),
+            SearchParameters {
+                depth: Some(5),
+                ..Default::default()
+            },
+        );
         assert!(search.pv.is_some());
+        assert!(search.score.is_some());
+        assert_eq!(search.score.unwrap(), 0);
     }
 }

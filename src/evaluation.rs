@@ -22,6 +22,10 @@ pub fn evaluation(pos: &Position) -> i16 {
     }
 }
 
+pub fn is_mate(score: i16) -> bool {
+    !(-MATE..MATE).contains(&score)
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
